@@ -1,0 +1,15 @@
+# Local override: build the app instead of pulling GHCR, publish the port, and reach the local Vault
+# dev server (scripts/local-vault.sh). Not used on Dokploy.
+services:
+  vault-agent:
+    networks: [default, scg-local]
+  app:
+    build: .
+    image: secure-cicd-go:local
+    pull_policy: build
+    ports:
+      - "127.0.0.1:8080:8080"
+
+networks:
+  scg-local:
+    external: true
