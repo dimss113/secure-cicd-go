@@ -1,0 +1,7 @@
+{{- /* Paths only, never values. APP_ENV is pinned in the compose file of each environment. */ -}}
+{{- $env := env "APP_ENV" -}}
+{{- $jwt := "" -}}
+{{- $aes := "" -}}
+{{- with secret (printf "static-secret/data/secure-cicd-go/%s/secrets/jwt" $env) }}{{ $jwt = .Data.data.secret_key }}{{ end -}}
+{{- with secret (printf "static-secret/data/secure-cicd-go/%s/secrets/aes" $env) }}{{ $aes = .Data.data.secret_key }}{{ end -}}
+{"env": {{ $env | toJSON }}, "jwtSecret": {{ $jwt | toJSON }}, "aesKey": {{ $aes | toJSON }}}
