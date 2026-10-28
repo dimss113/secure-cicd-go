@@ -2,3 +2,4 @@
 coverage.out
 config.local.json
 .env
+.local/
