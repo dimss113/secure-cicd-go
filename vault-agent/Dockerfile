@@ -5,5 +5,7 @@ COPY --chmod=0444 agent.hcl config.json.ctmpl /vault/config/
 COPY --chmod=0555 entrypoint.sh /usr/local/bin/agent-entrypoint.sh
 # Same UID as the app, so the 0400 config.json is readable by the app and nobody else.
 USER 65532:65532
+# Healthy means "a config has been rendered", not "Vault is reachable now": after an agent restart the
+# previous render stays on the tmpfs volume while the app holds it, so a revoked secret_id still reads healthy.
 HEALTHCHECK --interval=3s --timeout=3s --start-period=5s --retries=30 CMD ["test", "-s", "/vault/out/config.json"]
 ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"]
