@@ -4,7 +4,13 @@ services:
   vault-agent:
     networks: [default, scg-local]
   app:
-    build: .
+    # Build args stamp /version; without them the Dockerfile defaults (dev/unknown) are used.
+    # Run with: COMMIT=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) docker compose ...
+    build:
+      context: .
+      args:
+        COMMIT: ${COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: secure-cicd-go:local
     pull_policy: build
     ports:
