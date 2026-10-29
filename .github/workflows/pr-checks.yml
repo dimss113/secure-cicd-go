@@ -85,7 +85,7 @@ jobs:
           persist-credentials: false
       - name: Semgrep scan
         run: |
-          semgrep scan --config p/golang --config p/secrets \
+          semgrep scan --config p/golang --config p/default --config p/secrets \
             --severity ERROR --error --metrics=off \
             --sarif-output=semgrep.sarif
       - name: Upload SARIF
@@ -133,7 +133,7 @@ jobs:
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
-          limit-se-for-sarif: true
+          limit-severities-for-sarif: true
           format: sarif
           output: trivy-config.sarif
           exit-code: 0
