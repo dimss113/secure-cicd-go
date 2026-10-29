@@ -1,0 +1,22 @@
+name: source-branch
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Only development may open a PR into main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "development" ]; then
+            echo "::error::PR into main must come from development, not '$HEAD_REF'"
+            exit 1
+          fi
+          echo "Source branch is development: OK"
