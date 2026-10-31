@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/app /app
-# exception: owner=@dimss113 exp=2026-11-30 reason="demo: root needed to bind port 80, tracked in issue"
+# exception: owner=@dimss113 exp=2026-10-30 reason="demo: root needed to bind port 80, tracked in issue"
 # nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root
 USER root
 EXPOSE 8080
