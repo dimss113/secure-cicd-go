@@ -1,0 +1,172 @@
+name: deploy
+
+on:
+  push:
+    branches: [development, main]
+
+permissions: {}
+
+# One deploy per branch at a time; a newer push waits instead of cancelling a deploy halfway.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/dimss113/secure-cicd-go
+
+jobs:
+  # development: build once, scan, publish as sha-<commit>, then deploy to dev.
+  build:
+    if: github.ref_name == 'development'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg COMMIT="$GITHUB_SHA" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            -t "$IMAGE:sha-$GITHUB_SHA" .
+      - name: Trivy image (gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: image
+          image-ref: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: 1
+      - name: Install syft
+        env:
+          SYFT_VERSION: 1.54.1
+          SYFT_SHA256: c069905b391cc4c20a5ba65ad5c10be2a7ba074f8ea6ad203e24d14e303dad47
+        run: |
+          curl -sSfL -o syft.tar.gz \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  syft.tar.gz" | sha256sum --check -
+          tar -xzf syft.tar.gz syft
+          rm syft.tar.gz
+      - name: SBOM (CycloneDX)
+        run: ./syft scan "docker:$IMAGE:sha-$GITHUB_SHA" -o cyclonedx-json=sbom.cdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.cdx.json
+          retention-days: 90
+      - name: Push sha-<commit> to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker logout ghcr.io
+          digest="$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" | sed -n 's/^Digest: *//p')"
+          echo "Pushed \`$IMAGE:sha-$GITHUB_SHA\` (\`$digest\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: development
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Point the development tag at this image
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:development" "$IMAGE:sha-$GITHUB_SHA"
+          docker logout ghcr.io
+      - name: Deploy and smoke test
+        env:
+          DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
+          APP_URL: ${{ vars.APP_URL }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: scripts/dokploy-deploy.sh
+
+  # main: no rebuild. Promote the exact image that already passed dev, after a human approves.
+  resolve:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      sha: ${{ steps.find.outputs.sha }}
+    steps:
+      - name: Find the development commit this merge brought in
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          parents="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq '.parents | length')"
+          if [ "$parents" != 2 ]; then
+            echo "::error::main must only change through a merge commit from development"
+            exit 1
+          fi
+          sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq '.parents[1].sha')"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Promoting development commit \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: That commit must have deployed successfully to development
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.find.outputs.sha }}
+        run: |
+          id="$(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=development&sha=$SHA" --jq '.[0].id // empty')"
+          state="$(if [ -n "$id" ]; then gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state'; fi)"
+          if [ "$state" != success ]; then
+            echo "::error::$SHA has no successful development deployment (state: '${state:-none}')"
+            exit 1
+          fi
+          docker buildx imagetools inspect "$IMAGE:sha-$SHA" >/dev/null
+
+  promote:
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Only after approval: the production tag never points at an image nobody approved.
+      - name: Point the production tag at the approved image
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:production" "$IMAGE:sha-$SHA"
+          docker logout ghcr.io
+      - name: Deploy and smoke test
+        env:
+          DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
+          APP_URL: ${{ vars.APP_URL }}
+          EXPECTED_COMMIT: ${{ needs.resolve.outputs.sha }}
+        run: scripts/dokploy-deploy.sh
