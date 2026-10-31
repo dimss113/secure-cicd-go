@@ -1,0 +1,4 @@
+# Trivy exceptions (image CVEs and config checks). Rules: docs/exception-process.md
+# Each entry needs this line directly above it, and the same date as Trivy's exp:
+#   # exception: owner=@github-user exp=YYYY-MM-DD reason="why it is accepted, link to the issue"
+#   CVE-YYYY-NNNNN exp:YYYY-MM-DD
