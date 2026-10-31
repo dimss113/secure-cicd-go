@@ -13,6 +13,8 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/dimss113/secure-cicd-go
+  # The deploy jobs log in to Vault with their GitHub OIDC token; no Dokploy key is stored in GitHub.
+  VAULT_ADDR: https://vault.axen.software
 
 jobs:
   # development: build once, scan, publish as sha-<commit>, then deploy to dev.
@@ -83,6 +85,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,10 +97,22 @@ jobs:
           echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx imagetools create -t "$IMAGE:development" "$IMAGE:sha-$GITHUB_SHA"
           docker logout ghcr.io
+      # The role only accepts this workflow, on development, in the development environment.
+      - name: Read the Dokploy key from Vault
+        id: vault
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          path: jwt-github
+          role: secure-cicd-go-ci-development
+          jwtGithubAudience: ${{ env.VAULT_ADDR }}
+          exportEnv: false
+          secrets: static-secret/data/secure-cicd-go/ci/development/dokploy api_key | DOKPLOY_API_KEY
       - name: Deploy and smoke test
         env:
           DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_KEY: ${{ steps.vault.outputs.DOKPLOY_API_KEY }}
           DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
           APP_URL: ${{ vars.APP_URL }}
           EXPECTED_COMMIT: ${{ github.sha }}
@@ -150,6 +165,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -163,10 +179,22 @@ jobs:
           echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx imagetools create -t "$IMAGE:production" "$IMAGE:sha-$SHA"
           docker logout ghcr.io
+      # The role only accepts this workflow, on main, in the approved production environment.
+      - name: Read the Dokploy key from Vault
+        id: vault
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          path: jwt-github
+          role: secure-cicd-go-ci-production
+          jwtGithubAudience: ${{ env.VAULT_ADDR }}
+          exportEnv: false
+          secrets: static-secret/data/secure-cicd-go/ci/production/dokploy api_key | DOKPLOY_API_KEY
       - name: Deploy and smoke test
         env:
           DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_KEY: ${{ steps.vault.outputs.DOKPLOY_API_KEY }}
           DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
           APP_URL: ${{ vars.APP_URL }}
           EXPECTED_COMMIT: ${{ needs.resolve.outputs.sha }}
