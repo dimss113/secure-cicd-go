@@ -2,7 +2,7 @@
   "role_type": "jwt",
   "user_claim": "sub",
   "bound_audiences": ["https://vault.axen.software"],
-  "bound_subject": "repo:dimss113/secure-cicd-go:environment:development",
+  "bound_subject": "repo:dimss113@89715780/secure-cicd-go@1437332931:environment:development",
   "bound_claims_type": "string",
   "bound_claims": {
     "repository_id": "1437332931",
