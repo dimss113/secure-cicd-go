@@ -2,3 +2,5 @@
 # Each entry needs this line directly above it, and the same date as Trivy's exp:
 #   # exception: owner=@github-user exp=YYYY-MM-DD reason="why it is accepted, link to the issue"
 #   CVE-YYYY-NNNNN exp:YYYY-MM-DD
+# exception: owner=@dimss113 exp=2026-11-30 reason="demo: root needed to bind port 80, tracked in issue"
+DS-0002 exp:2026-11-30

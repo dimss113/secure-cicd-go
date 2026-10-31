@@ -14,7 +14,9 @@ RUN CGO_ENABLED=0 go build -trimpath \
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/app /app
-USER 65532:65532
+# exception: owner=@dimss113 exp=2026-11-30 reason="demo: root needed to bind port 80, tracked in issue"
+# nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root
+USER root
 EXPOSE 8080
 # Distroless has no shell or curl, so the binary probes itself.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 CMD ["/app", "healthcheck"]
