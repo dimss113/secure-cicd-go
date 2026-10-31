@@ -1,0 +1,4 @@
+# Gitleaks exceptions, for false positives only. A real leaked secret is rotated, never ignored.
+# Rules: docs/exception-process.md. Each fingerprint needs this line directly above it:
+#   # exception: owner=@github-user exp=YYYY-MM-DD reason="why it is not a secret, link to the issue"
+#   <commit>:<file>:<rule-id>:<line>

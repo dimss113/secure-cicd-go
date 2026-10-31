@@ -1,0 +1,22 @@
+name: exception-expiry
+
+# PR checks only run when someone opens a PR. This weekly run catches exceptions that expire in between,
+# and GitHub emails the failure.
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Monday 01:00 UTC = 08:00 WIB
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exception-expiry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check scanner exceptions
+        run: bash scripts/check-exceptions.sh

@@ -35,7 +35,8 @@
           { "context": "govulncheck", "integration_id": 15368 },
           { "context": "dependency-review", "integration_id": 15368 },
           { "context": "trivy-config", "integration_id": 15368 },
-          { "context": "trivy-image", "integration_id": 15368 }
+          { "context": "trivy-image", "integration_id": 15368 },
+          { "context": "exceptions", "integration_id": 15368 }
         ]
       }
     }
