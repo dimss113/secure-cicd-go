@@ -95,6 +95,16 @@ jobs:
           sarif_file: semgrep.sarif
           category: semgrep
 
+  exceptions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check scanner exceptions
+        run: bash scripts/check-exceptions.sh
+
   govulncheck:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -130,6 +140,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.76.1
+          trivyignores: .trivyignore
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
@@ -147,6 +158,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.76.1
+          trivyignores: .trivyignore
           skip-setup-trivy: true
           scan-type: config
           scan-ref: .
@@ -170,6 +182,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.76.1
+          trivyignores: .trivyignore
           scan-type: image
           image-ref: secure-cicd-go:pr
           severity: HIGH,CRITICAL
@@ -187,6 +200,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.76.1
+          trivyignores: .trivyignore
           skip-setup-trivy: true
           scan-type: image
           image-ref: secure-cicd-go:pr
