@@ -1,0 +1,48 @@
+# Production stack on Dokploy. Dokploy writes VAULT_ADDR, VAULT_ROLE_ID and VAULT_SECRET_ID to .env
+# next to this file. APP_ENV is pinned here, never read from .env, so a wrong value cannot pull
+# another environment's secrets.
+services:
+  vault-agent:
+    build: ./vault-agent
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      VAULT_ADDR: ${VAULT_ADDR:?set VAULT_ADDR}
+      VAULT_ROLE_ID: ${VAULT_ROLE_ID:?set VAULT_ROLE_ID}
+      VAULT_SECRET_ID: ${VAULT_SECRET_ID:?set VAULT_SECRET_ID}
+    volumes:
+      - vault_auth:/vault/auth
+      - config_vol:/vault/out
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  app:
+    image: ghcr.io/dimss113/secure-cicd-go:production
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      vault-agent:
+        condition: service_healthy
+    # Only the rendered config; the AppRole volume is never mounted here.
+    volumes:
+      - config_vol:/run/config:ro
+    expose:
+      - "8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      - dokploy-network
+
+# tmpfs: secrets live in RAM only and vanish when the stack stops.
+volumes:
+  vault_auth:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "uid=65532,gid=65532,mode=0700"}
+  config_vol:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "uid=65532,gid=65532,mode=0700"}
+
+networks:
+  # Created by Dokploy; Traefik routes the domain to the app over it.
+  dokploy-network:
+    external: true

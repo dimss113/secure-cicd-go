@@ -1,0 +1,21 @@
+# Local override: build the app instead of pulling GHCR, publish the port, and reach the local Vault
+# dev server (scripts/local-vault.sh). Not used on Dokploy.
+services:
+  vault-agent:
+    networks: [default, scg-local]
+  app:
+    # Build args stamp /version; without them the Dockerfile defaults (dev/unknown) are used.
+    # Run with: COMMIT=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) docker compose ...
+    build:
+      context: .
+      args:
+        COMMIT: ${COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: secure-cicd-go:local
+    pull_policy: build
+    ports:
+      - "127.0.0.1:8080:8080"
+
+networks:
+  scg-local:
+    external: true
