@@ -2,3 +2,5 @@
 # Rules: docs/exception-process.md. Each fingerprint needs this line directly above it:
 #   # exception: owner=@github-user exp=YYYY-MM-DD reason="why it is not a secret, link to the issue"
 #   <commit>:<file>:<rule-id>:<line>
+# exception: owner=@dimss113 exp=2026-11-30 reason="demo: fixed test value, not a real credential"
+81ae503739a909174ce1d6490ad274edc87a72f4:internal/demo/vector.go:generic-api-key:4
